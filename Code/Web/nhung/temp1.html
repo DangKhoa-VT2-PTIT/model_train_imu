@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Auto Reload Data</title>
+  <script>
+    function fetchData() {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', 'temp.html', true);
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          document.getElementById('data').innerText = xhr.responseText;
+        }
+      };
+      xhr.send();
+    }
+
+    setInterval(fetchData, 100); // Gọi hàm fetchData mỗi giây (1000ms)
+  </script>
+</head>
+<body>
+  <h1>Dữ liệu từ ESP8266</h1>
+  <div id="data">Đang tải dữ liệu...</div>
+</body>
+</html>

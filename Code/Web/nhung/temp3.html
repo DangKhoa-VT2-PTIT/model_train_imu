@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vẽ Biểu Đồ Bằng HTML</title>
+    
+    <!-- Thêm Bootstrap CSS từ CDN -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin-top: 50px;
+        }
+        canvas {
+            width: 100%;
+            height: auto;
+            max-width: 100%;
+            margin: auto;
+            display: block;
+        }
+        .data-container {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        .image-container {
+            margin-top: 20px;
+        }
+        .center-text {
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+
+    <script>
+        function fetchData() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', 'temp.html', true);
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    var data = xhr.responseText;
+                    document.getElementById('data').innerText = data;
+
+                    if (data.includes('Sitting')) {
+                        document.getElementById('image').src = 'ngoi.jpg';
+                        document.getElementById('image').style.display = 'block';
+                    } else if (data.includes('Walking')) {
+                        document.getElementById('image').src = 'di.jpg';
+                        document.getElementById('image').style.display = 'block';
+                    } else if (data.includes('Standing')) {
+                        document.getElementById('image').src = 'dung.jpg';
+                        document.getElementById('image').style.display = 'block';
+                    } else if (data.includes('Running')) {
+                        document.getElementById('image').src = 'chay.jpg';
+                        document.getElementById('image').style.display = 'block';
+                    } else if (data.includes('Jumping')) {
+                        document.getElementById('image').src = 'nhay.jpg';
+                        document.getElementById('image').style.display = 'block';
+                    } else {
+                        document.getElementById('image').style.display = 'none';
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        setInterval(fetchData, 100); // Gọi hàm fetchData mỗi 100ms
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-7">
+                <h1 class="my-4 text-center">Biểu Đồ Đường</h1>
+                <canvas id="myChart" class="mb-4 mx-auto d-block"></canvas>
+            </div>
+            <div class="col-md-5">
+                <h1 class="my-4 text-center">Hình ảnh khi nhận được giá trị tương ứng</h1>
+                <div class="text-center">
+                    <img id="image" src="" class="img-fluid mx-auto d-block" style="display:none; max-width: 80%; height: auto;" alt="Hình ảnh khi nhận được giá trị tương ứng">
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="container">
+                <div class="center-text">
+                    <h1 class="my-3">Dữ liệu từ ESP8266</h1>
+                </div>
+                <div class="row">
+                    
+                    <div class="col-md-4">
+                       
+                    </div> 
+                    <div class="col-md-4">
+                        <div class="center-text">
+                            
+                            <div class="card data-container bg-light text-dark border-2">
+                                <div id="data" class="p-3 m-0">Đang tải dữ liệu...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                       
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        
+    </div>
+
+    <!-- Thêm Chart.js từ CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Thêm tệp script.js -->
+    <script src="chart.js"></script>
+
+    <!-- Thêm Bootstrap JS và các phụ thuộc từ CDN -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
