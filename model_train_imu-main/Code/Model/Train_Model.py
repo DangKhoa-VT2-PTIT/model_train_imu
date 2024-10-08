@@ -91,7 +91,7 @@ model.add(keras.layers.Flatten(input_shape=(SAMPLES_PER_LABEL, SENSOR_NUM)))
 model.add(keras.layers.Dense(16, activation='sigmoid'))
 model.add(keras.layers.Dense(16, activation='sigmoid'))
 model.add(keras.layers.Dropout(0.3))
-model.add(keras.layers.Dense(NUM_CLASSESS, activation='softmax'))   
+model.add(keras.layers.Dense(NUM_CLASSESS, activation='sigmoid'))   
 
 model.compile(optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"]) 
 model.summary()
