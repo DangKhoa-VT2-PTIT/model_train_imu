@@ -1,54 +1,70 @@
+#ifndef SECRETS_H
+#define SECRETS_H
 /*
 
           WIFI SETUP
 
 */
-
 // #define WIFI_SSID     "GalaxyM34"
 // #define WIFI_PASSWORD "dangkhoa"
-#define WIFI_SSID     "Khuvuonthanhpho"
-#define WIFI_PASSWORD "kvttp0104"
+// #define WIFI_SSID     "Khuvuonthanhpho"
+// #define WIFI_PASSWORD "kvttp0104"
+#define WIFI_SSID     "PTIT.HCM_SV"
+#define WIFI_PASSWORD ""
 
-/*
+WiFiClientSecure espClient;
+PubSubClient client(espClient);
 
-          FIREBASE SETUP
+// MQTT server info(default uncomment, comment for test)
+// const char* mqttServer = "rabbitmq-001-pub.sa.wise-paas.com";;
+// const int mqttPort = 1883;
+// const char* mqttUser = "ed6e5a2a-5899-11ea-8729-f6bfce9fbbfd:f172c4b8-c811-4c76-a84e-4c6c78b43d8f";
+// const char* mqttPassword = "3lAPmS96yZ3RBy5VNCF9y0Zux";
 
-  ------------------------------------------------
-  IMPORTANT: Choose Firebase Initialization Method
-  ------------------------------------------------
+// MQTT server test(default comment, uncomment for test)
+const char* mqttServer = "f34505a4b96445239183b394756a01e1.s1.eu.hivemq.cloud";;
+const int mqttPort = 8883;
+const char* mqttUser = "ndk_mqtt_demo";
+const char* mqttPassword = "20112002Kh";
 
-  1. ** Test Mode (No Authentication) **:
+// MQTT topic
+const char* mqttTopic = "breathing/data";
+void Wifi_setup(void)
+{
+  WiFi.disconnect();
+  delay(1000);
 
-     - Ensure Firebase rules are set to allow public access. Set the rules as follows:
-       {
-         "rules": {
-           ".read": "true",
-           ".write": "true"
-         }
-       }
+  /* Connect to WiFi */
+  Serial.println();
+  Serial.println();
+  Serial.print("Connecting to: ");
+  Serial.println(WIFI_SSID);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  2. ** Locked Mode (With Authentication) **:
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print("-");
+    delay(500);
+  }
 
-     - Obtain your Firebase Authentication Token:
-       1. Open your Firebase Console: https://console.firebase.google.com/
-       2. Navigate to your project.
-       3. Click on the gear icon next to "Project Overview" and select "Project settings".
-       4. Go to the "Service accounts" tab.
-       5. In the "Database secrets" section, click on "Show" to reveal your authentication token.
+  Serial.println();
+  Serial.println("WiFi Connected");
+  Serial.println();
+}
 
-     - Ensure Firebase rules require authentication. Set the rules as follows:
-       {
-         "rules": {
-           ".read": "auth != null",
-           ".write": "auth != null"
-         }
-       }
+void MQTT_setup(void)
+{
+  // Set up MQTT connection
+  client.setServer(mqttServer, mqttPort);
+  espClient.setInsecure();
 
-  Note: Using authentication is recommended for production environments to secure your data.
-*/
+  // Connect to MQTT
+  if (client.connect("ESP32Client", mqttUser, mqttPassword)) {
+    Serial.println("MQTT Connected");
+  } else {
+    Serial.print("MQTT Connection failed, rc=");
+    Serial.print(client.state());
+  }
+}
+#endif
 
-/* Test Mode (No Authentication) */
-#define REFERENCE_URL "https://heathapp-b67df-default-rtdb.asia-southeast1.firebasedatabase.app/"
-
-/* Uncomment the following line for Locked Mode (With Authentication) */
-// #define AUTH_TOKEN "YOUR-AUTHENTICATION-CODE"

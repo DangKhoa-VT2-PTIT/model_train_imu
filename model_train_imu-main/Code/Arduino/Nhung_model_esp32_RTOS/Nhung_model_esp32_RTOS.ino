@@ -1,33 +1,36 @@
+//ML and DSP library
 #include <TensorFlowLite_ESP32.h>
-#include <MPU6050.h>
-#include <Wire.h>
-
-#include "secrets.h"
-#include <Firebase.h>
-#include <ArduinoJson.h>
-#include <time.h>
-
 #include "tensorflow/lite/micro/all_ops_resolver.h"
 #include "tensorflow/lite/micro/micro_error_reporter.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
 #include "tensorflow/lite/micro/system_setup.h"
 #include "tensorflow/lite/schema/schema_generated.h"
-
 #include "AImodel.h"
 #include "FFT.h"
 
+// Sensor library
+#include <MPU6050.h>
+#include <Wire.h>
+
+// Network and JSON 
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include <time.h>
+#include "secrets.h"
+
+// Data collection params
 const int num_timesteps = 60;
 const int num_features = 6;
 const int time_delay = 25;
 
 // Init
 MPU6050 mpu;
-Firebase fb(REFERENCE_URL);
 
 // Timestamp define
-// Cấu hình NTP server
+// Config NTP server
 const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = 7 * 3600;  // GMT+7 (có thể thay đổi tùy theo múi giờ của bạn)
+const long  gmtOffset_sec = 7 * 3600;  // GMT+7
 const int   daylightOffset_sec = 0;
 // unsigned int count = 0;
 
@@ -60,52 +63,42 @@ const char* GESTURES[] = {
 };
 String gestures = "";
 
-// Số label dự đoán
+// Number of label
 #define NUM_GESTURES (sizeof(GESTURES) / sizeof(GESTURES[0]))
 
-// Mảng dùng để lưu dữ liệu thu được và đưa vào model dự đoán 
+// array to save IMU data
 float input_data[num_timesteps * num_features] = {};
 
-int predicted_gesture = -1; // Biến lưu vị trí dự đoán
+int predicted_gesture = -1; // prediction index
 volatile bool data_ready = false;
 bool gotData = false;
 bool record = false;
 
-void setup() {
-  Wire.begin();
+void setup() 
+{
   Serial.begin(115200);
-  WiFi.disconnect();
-  delay(1000);
-
-  /* Connect to WiFi */
-  Serial.println();
-  Serial.println();
-  Serial.print("Connecting to: ");
-  Serial.println(WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print("-");
-    delay(500);
-  }
-
-  Serial.println();
-  Serial.println("WiFi Connected");
-  Serial.println();
-
-  // Khởi tạo NTP để đồng bộ thời gian
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-
-  // Kiểm tra kết nối MPU6050
+  
+  // MPU6050 setup
+  Wire.begin();
   mpu.initialize();
-  if (!mpu.testConnection()) {
+  if (!mpu.testConnection()) 
+  {
     Serial.println("MPU6050 connection failed!");
     while (1);
   }
+  //Setup wifi
+  Wifi_setup();
+
+  // Setup NTP
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  // Setup MQTT
+  MQTT_setup();
 
   // get the TFL representation of the model byte array
   tflModel = tflite::GetModel(AImodel);
-  if (tflModel->version() != TFLITE_SCHEMA_VERSION) {
+  if (tflModel->version() != TFLITE_SCHEMA_VERSION) 
+  {
     Serial.println("Model schema mismatch!");
     while (1);
   }
@@ -126,21 +119,24 @@ void setup() {
   xTaskCreate(taskSendData, "TaskSendData", 8192, NULL, 1, NULL);
 }
 
-void taskReadSensor(void *parameter) {
+void taskReadSensor(void *parameter) 
+{
   // Serial.print("taskReadSensor running on core ");
   // Serial.println(xPortGetCoreID());
-  while (1) {
+  while (1) 
+  {
     // if (!fb.getBool("Record")) {
-    //   vTaskDelay(1000 / portTICK_PERIOD_MS); // Delay trước khi kiểm tra lại
-    //   continue; // Dừng gửi dữ liệu nếu record là false
+    //   vTaskDelay(1000 / portTICK_PERIOD_MS);
+    //   continue;
     // }
-    // Thu data
-    for (int i = 0; i < num_timesteps; i++) {
+    //Data collection
+    for (int i = 0; i < num_timesteps; i++) 
+    {
       int16_t ax, ay, az;
       int16_t gx, gy, gz;
       mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
-      // Chuyển đổi dữ liệu thành các giá trị float và lưu vào mảng
+      // Convert datatype to float and save to array
       input_data[i * num_features + 0] = ax / 16384.0;
       input_data[i * num_features + 1] = ay / 16384.0;
       input_data[i * num_features + 2] = az / 16384.0;
@@ -160,35 +156,37 @@ void taskReadSensor(void *parameter) {
           sum_val += (float)az / 16384.0;
         }
         resp_data[i] = sum_val / 4;
-        Serial.print(resp_data[i]);
-        Serial.print(" ");
         delay(time_delay);
     }
 
     gotData = true;
     vTaskDelay(10 / portTICK_PERIOD_MS); // Delay to prevent this task from running too frequently
-    yield();
   }
 }
 
-void taskProcessData(void *parameter) {
+void taskProcessData(void *parameter) 
+{
   // Serial.print("taskProcessData running on core ");
   // Serial.println(xPortGetCoreID());
-  while (1) {
+  while (1) 
+  {
     // if (!fb.getBool("Record")) {
-    //   vTaskDelay(1000 / portTICK_PERIOD_MS); // Delay trước khi kiểm tra lại
-    //   continue; // Dừng gửi dữ liệu nếu record là false
+    //   vTaskDelay(1000 / portTICK_PERIOD_MS);
+    //   continue;
     // }
 
-    if(gotData){
+    if(gotData)
+    {
       //Add data to model
-      for (int i = 0; i < num_timesteps * num_features; i++) {
+      for (int i = 0; i < num_timesteps * num_features; i++) 
+      {
         tflInputTensor->data.f[i] = input_data[i];
       }
 
       // Run inferencing
       TfLiteStatus invokeStatus = tflInterpreter->Invoke();
-      if (invokeStatus != kTfLiteOk) {
+      if (invokeStatus != kTfLiteOk) 
+      {
         Serial.println("Invoke failed!");
         // while (1);
         return;
@@ -197,24 +195,23 @@ void taskProcessData(void *parameter) {
       // Find the index of the maximum value in the output tensor
       int max_index = 0;
       float max_value = tflOutputTensor->data.f[0];
-      for (int i = 1; i < NUM_GESTURES; i++) {
-        if (tflOutputTensor->data.f[i] > max_value) {
+      for (int i = 1; i < NUM_GESTURES; i++) 
+      {
+        if (tflOutputTensor->data.f[i] > max_value) 
+        {
           max_index = i;
           max_value = tflOutputTensor->data.f[i];
         }
       }
-      // Cập nhật nhãn dự đoán
+      // Update predict label
       predicted_gesture = max_index;
 
-      // Dự đoán tư thế
+      // Predict gesture
       int16_t ax, ay, az;
       mpu.getAcceleration(&ax, &ay, &az);
       float ax_cal = ax / 16384.0 * 9.81;
       float ay_cal = ay / 16384.0 * 9.81;
       float az_cal = az / 16384.0 * 9.81;
-      Serial.println(ax_cal);
-      Serial.println(ay_cal);
-      Serial.println(az_cal);
 
       if(-ay_cal >= 8)
       {
@@ -225,40 +222,42 @@ void taskProcessData(void *parameter) {
         gestures = "Lying";
       }
 
-      // Tính Fourier Transform với dữ liệu từ các trục
+      // FFT for respiratory
       compute_fourier_transform(resp_data, frequencies, magnitudes, resp_samples);
       respiratory = rr_est(magnitudes, resp_samples);
 
       
-      //Cập nhật trạng thái gotData
+      //Update gotData state
       gotData = false;
     }
     vTaskDelay(10 / portTICK_PERIOD_MS); // Delay to prevent this task from running too frequently
-    yield();
   }
 }
 
-void taskSendData(void *parameter) {
+void taskSendData(void *parameter) 
+{
   // Serial.print("taskSenData running on core ");
   // Serial.println(xPortGetCoreID());
-  const int sendInterval = 1000;  // Gửi data mỗi 1 giây (1000 milliseconds)
-  unsigned long lastSendTime = 0; // Biến lưu trữ thời gian lần gửi trước
+  const int sendInterval = 1000;  
+  unsigned long lastSendTime = 0;
 
-  while (1) {
+  while (1) 
+  {
     // if (!fb.getBool("Record")) {
-    //   vTaskDelay(1000 / portTICK_PERIOD_MS); // Delay trước khi kiểm tra lại
-    //   continue; // Dừng gửi dữ liệu nếu record là false
+    //   vTaskDelay(1000 / portTICK_PERIOD_MS);
+    //   continue;
     // }
-    unsigned long currentMillis = millis(); // Lấy thời gian hiện tại
-    if (predicted_gesture != -1 && (currentMillis - lastSendTime >= sendInterval)) {
-      lastSendTime = currentMillis;  // Cập nhật thời gian lần gửi gần nhất
+    unsigned long currentMillis = millis(); // get current time
+    if (predicted_gesture != -1 && (currentMillis - lastSendTime >= sendInterval)) 
+    {
+      lastSendTime = currentMillis;
 
       String postData = GESTURES[predicted_gesture];
       bool isBreathing = (predicted_gesture == 0);
       // Print out the data being sent
       Serial.println(postData);
 
-      // dung lượng pin
+      // Battery capacity
       sum = 0;
       for(int i = 0; i < numberOfSamples; i++)
       {
@@ -268,17 +267,17 @@ void taskSendData(void *parameter) {
       }
       voltage = sum / numberOfSamples;
 
-      // Lấy thời gian hiện tại theo định dạng "YYYY-MM-DD HH:MM:SS"
+      // Get current time by format "YYYY-MM-DD HH:MM:SS"
       String currentTime = getFormattedTime();
       Serial.println("Current Time: " + currentTime);
 
 
       /* ----- Serialization: Set example data in Firebase ----- */
 
-      // Tạo một JSON document để chứa dữ liệu đầu ra
+      // Create JSON document
       JsonDocument docOutput;
 
-      // Thêm nhịp thở (float) và timestamp (chuỗi định dạng) vào JSON document
+      // Add processed data to JSON document
       if(isBreathing == false)
       {
         respiratory = 0;
@@ -287,54 +286,51 @@ void taskSendData(void *parameter) {
       {
         respiratory = 12;
       }
-      docOutput["breathingRate"] = respiratory;  // nhịp thở
-      docOutput["breathingStatus"] = isBreathing;  // trạng thái thở/ngưng thở
-      docOutput["gestures"] = gestures; // tư thế
-      docOutput["batteryVoltage"] = voltage * 2; // điện áp pin
-      
-      
+      docOutput["timestamp"] = currentTime;
+      docOutput["breathingRate"] = respiratory; 
+      docOutput["breathingStatus"] = isBreathing; 
+      docOutput["gestures"] = gestures; 
+      docOutput["batteryVoltage"] = voltage * 2;
 
-      // // Chuỗi để chứa dữ liệu JSON đã serialize
+      //JSON string
       String output;
-
-      // // Serialize JSON document sang chuỗi
       serializeJson(docOutput, output);
 
-      // Sử dụng chính timestamp làm khóa để lưu trữ dữ liệu trên Firebase
-      String firebasePath = "/BreathingData/" + currentTime;
-
-      // Gửi dữ liệu đã serialize lên Firebase
-      fb.setJson(firebasePath, output);
-
-      // In ra Serial để kiểm tra
-      Serial.println("Data sent to Firebase:");
-      Serial.println(output);
+      // Publish data to MQTT topic
+      if (client.connected()) 
+      {
+        client.publish(mqttTopic, output.c_str());
+      } 
+      else 
+      {
+        Serial.println("MQTT not connected");
+      }
 
       predicted_gesture = -1;
     }
     delay(1); // Delay for 1 second before next data sending
   }
   vTaskDelay(10 / portTICK_PERIOD_MS); 
-  yield();
 }
 
 
-void loop() {
+void loop() 
+{
   // The loop is not needed as we use FreeRTOS tasks
   vTaskDelete(NULL); 
 }
 
-// Hàm để lấy thời gian định dạng "YYYY-MM-DD HH:MM:SS"
+// Function to get formatted time "YYYY-MM-DD HH:MM:SS"
 String getFormattedTime() 
 {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) 
   {
     Serial.println("Failed to obtain time");
-    return "0000-00-00 00:00:00";  // Trả về giá trị mặc định nếu không lấy được thời gian
+    return "0000-00-00 00:00:00";  // Return default value if time cannot be obtained
   }
   
-  char timeString[20];  // Chuỗi để chứa thời gian định dạng
+  char timeString[20];  // String to contain formatted time
   strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", &timeinfo);
   return String(timeString);
 }

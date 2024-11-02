@@ -1,6 +1,6 @@
-#pragma once
+#ifndef FFT_H
+#define FFT_H
 
-// Khai báo
 const int resp_samples = 512;
 float resp_data[resp_samples] = {};
 float frequencies[resp_samples];
@@ -11,13 +11,13 @@ float respiratory = 0;
 
 void fft(float *real, float *imag, int N);
 
-//Tính Fourier Transform
+//Fourier Transform
 void compute_fourier_transform(float* data, float* frequencies, float* magnitudes, int data_length) 
 {
   Serial.println();
   Serial.println("Computing Fourier Transform...");
 
-  // Loại bỏ thành phần DC
+  // Remove DC
   float mean_value = 0;
   for (int i = 0; i < data_length; i++) 
   {
@@ -30,26 +30,27 @@ void compute_fourier_transform(float* data, float* frequencies, float* magnitude
     data[i] -= mean_value;
   }
 
-  // Tính toán phần thực và phần ảo
+  // Calculate real part and imag part
   for (int k = 0; k < data_length; k++) 
   {
     real_part[k] = data[k];
     imag_part[k] = 0;
   }
   
-  // Tính fft
+  //FFT
   fft(real_part, imag_part, data_length);
 
   for (int k = 0; k < data_length; k++) 
   {
     magnitudes[k] = sqrt(real_part[k] * real_part[k] + imag_part[k] * imag_part[k]);
-    frequencies[k] = k * 40.0 / data_length; // Tần số
+    frequencies[k] = k * 40.0 / data_length; // Frequencies
   }
 
   Serial.println("Fourier Transform computed.");
 }
-// Tính resp
-int rr_est(float* magnitudes, int samples) {
+// Calculate respiratory
+int rr_est(float* magnitudes, int samples) 
+{
   Serial.println("Estimating breath rate from magnitudes...");
   int max_peak_index = 0;
   float max_peak_value = 0;
@@ -66,15 +67,15 @@ int rr_est(float* magnitudes, int samples) {
     }
   }
 
-  // Chuyển đổi chỉ số đỉnh thành nhịp thở
-  float breath_rate = (max_peak_index * 40.0 / samples) * 60; // Nhịp thở tính theo phút
+  // Convert peak index to respiratory rate
+  float breath_rate = (max_peak_index * 40.0 / samples) * 60; // Breathing rate per minute
   Serial.print("Nhịp thở ước lượng: ");
   Serial.println(breath_rate);
 
   return breath_rate;
 }
 
-//Tính fft
+//FFT algorithm
 void fft(float *real, float *imag, int N) {
     int j = 0;
     for (int i = 1; i < N; i++) 
@@ -121,7 +122,7 @@ void fft(float *real, float *imag, int N) {
                 real[index1] += temp_real;
                 imag[index1] += temp_imag;
 
-                // Cập nhật u
+                // Update u
                 float temp_u_real = u_real * w_real - u_imag * w_imag;
                 u_imag = u_real * w_imag + u_imag * w_real;
                 u_real = temp_u_real;
@@ -129,3 +130,4 @@ void fft(float *real, float *imag, int N) {
         }
     }
 }
+#endif
