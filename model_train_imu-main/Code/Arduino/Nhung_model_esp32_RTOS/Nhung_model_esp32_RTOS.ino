@@ -14,8 +14,8 @@
 #include "tensorflow/lite/schema/schema_generated.h"
 
 #include "AImodel.h"
+#include "FFT.h"
 
-const int resp_samples = 512;
 const int num_timesteps = 60;
 const int num_features = 6;
 const int time_delay = 25;
@@ -67,7 +67,6 @@ String gestures = "";
 float input_data[num_timesteps * num_features] = {};
 
 int predicted_gesture = -1; // Biến lưu vị trí dự đoán
-float respiratory = 0; // nhịp thở
 volatile bool data_ready = false;
 bool gotData = false;
 bool record = false;
@@ -150,6 +149,22 @@ void taskReadSensor(void *parameter) {
       input_data[i * num_features + 5] = gz / 131.0;
       delay(time_delay);
     }
+
+    for (int i = 0; i < resp_samples; i++) 
+    {
+        float sum_val = 0;
+        for(int j = 0; j < 4; j++)
+        {
+          int16_t ax, ay, az;
+          mpu.getAcceleration(&ax, &ay, &az);
+          sum_val += (float)az / 16384.0;
+        }
+        resp_data[i] = sum_val / 4;
+        Serial.print(resp_data[i]);
+        Serial.print(" ");
+        delay(time_delay);
+    }
+
     gotData = true;
     vTaskDelay(10 / portTICK_PERIOD_MS); // Delay to prevent this task from running too frequently
     yield();
@@ -210,13 +225,8 @@ void taskProcessData(void *parameter) {
         gestures = "Lying";
       }
 
-      // Loại bỏ thành phần DC và kết hợp dữ liệu từ ax, ay, az
-      remove_dc_and_concatenate(resp_data, concatenated_data);
-
       // Tính Fourier Transform với dữ liệu từ các trục
-      float frequencies[resp_samples];
-      float magnitudes[resp_samples];
-      compute_fourier_transform(concatenated_data, frequencies, magnitudes, resp_samples);
+      compute_fourier_transform(resp_data, frequencies, magnitudes, resp_samples);
       respiratory = rr_est(magnitudes, resp_samples);
 
       
@@ -311,7 +321,7 @@ void taskSendData(void *parameter) {
 
 void loop() {
   // The loop is not needed as we use FreeRTOS tasks
-  
+  vTaskDelete(NULL); 
 }
 
 // Hàm để lấy thời gian định dạng "YYYY-MM-DD HH:MM:SS"
@@ -329,81 +339,3 @@ String getFormattedTime()
   return String(timeString);
 }
 
-// Loại bỏ dc
-void remove_dc_and_concatenate(float* data, float* concatenated_data) {
-  float mean_ax = 0, mean_ay = 0, mean_az = 0;
-
-  // Tính giá trị trung bình cho ax, ay, az
-  for (int i = 0; i < resp_samples; i++) {
-    mean_ax += data[i * (num_features/2)];
-    mean_ay += data[i * (num_features/2) + 1];
-    mean_az += data[i * (num_features/2) + 2];
-  }
-  mean_ax /= resp_samples;
-  mean_ay /= resp_samples;
-  mean_az /= resp_samples;
-
-  // Loại bỏ thành phần DC và nối ax, ay, az thành một mảng
-  for (int i = 0; i < resp_samples; i++) {
-    concatenated_data[i] = (data[i * (num_features/2)] - mean_ax) +
-                           (data[i * (num_features/2) + 1] - mean_ay) +
-                           (data[i * (num_features/2) + 2] - mean_az);
-    // Serial.print(concatenated_data[i]);
-  }
-}
-
-//Tính Fourier Transform
-void compute_fourier_transform(float* data, float* frequencies, float* magnitudes, int data_length) {
-  Serial.println("Computing Fourier Transform...");
-
-  // Loại bỏ thành phần DC
-  float mean_value = 0;
-  for (int i = 0; i < data_length; i++) {
-    mean_value += data[i];
-  }
-  mean_value /= data_length;
-
-  for (int i = 0; i < data_length; i++) {
-    data[i] -= mean_value;
-  }
-
-  // Tính toán phần thực và phần ảo
-  float real_part[data_length];
-  float imag_part[data_length];
-
-  for (int k = 0; k < data_length; k++) {
-    real_part[k] = 0;
-    imag_part[k] = 0;
-    for (int n = 0; n < data_length; n++) {
-      real_part[k] += data[n] * cos(2 * PI * n * k / data_length);
-      imag_part[k] -= data[n] * sin(2 * PI * n * k / data_length);
-    }
-    magnitudes[k] = sqrt(real_part[k] * real_part[k] + imag_part[k] * imag_part[k]);
-    frequencies[k] = k * 40.0 / data_length; // Tần số
-  }
-
-  Serial.println("Fourier Transform computed.");
-}
-
-// Tính resp
-int rr_est(float* magnitudes, int samples) {
-  Serial.println("Estimating breath rate from magnitudes...");
-  int max_peak_index = 0;
-  float max_peak_value = 0;
-
-  for (int i = 1; i < samples - 1; i++) {
-    if (magnitudes[i] > magnitudes[i - 1] && magnitudes[i] > magnitudes[i + 1]) {
-      if (magnitudes[i] > max_peak_value) {
-        max_peak_value = magnitudes[i];
-        max_peak_index = i;
-      }
-    }
-  }
-
-  // Chuyển đổi chỉ số đỉnh thành nhịp thở
-  float breath_rate = (max_peak_index * 40.0 / samples) * 60; // Nhịp thở tính theo phút
-  Serial.print("Nhịp thở ước lượng: ");
-  Serial.println(breath_rate);
-
-  return breath_rate;
-}
