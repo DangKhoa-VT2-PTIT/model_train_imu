@@ -130,10 +130,10 @@ void taskReadSensor(void *parameter) {
   // Serial.print("taskReadSensor running on core ");
   // Serial.println(xPortGetCoreID());
   while (1) {
-    if (!fb.getBool("Record")) {
-      vTaskDelay(1000 / portTICK_PERIOD_MS); // Delay trước khi kiểm tra lại
-      continue; // Dừng gửi dữ liệu nếu record là false
-    }
+    // if (!fb.getBool("Record")) {
+    //   vTaskDelay(1000 / portTICK_PERIOD_MS); // Delay trước khi kiểm tra lại
+    //   continue; // Dừng gửi dữ liệu nếu record là false
+    // }
     // Thu data
     for (int i = 0; i < num_timesteps; i++) {
       int16_t ax, ay, az;
@@ -175,10 +175,10 @@ void taskProcessData(void *parameter) {
   // Serial.print("taskProcessData running on core ");
   // Serial.println(xPortGetCoreID());
   while (1) {
-    if (!fb.getBool("Record")) {
-      vTaskDelay(1000 / portTICK_PERIOD_MS); // Delay trước khi kiểm tra lại
-      continue; // Dừng gửi dữ liệu nếu record là false
-    }
+    // if (!fb.getBool("Record")) {
+    //   vTaskDelay(1000 / portTICK_PERIOD_MS); // Delay trước khi kiểm tra lại
+    //   continue; // Dừng gửi dữ liệu nếu record là false
+    // }
 
     if(gotData){
       //Add data to model
@@ -245,10 +245,10 @@ void taskSendData(void *parameter) {
   unsigned long lastSendTime = 0; // Biến lưu trữ thời gian lần gửi trước
 
   while (1) {
-    if (!fb.getBool("Record")) {
-      vTaskDelay(1000 / portTICK_PERIOD_MS); // Delay trước khi kiểm tra lại
-      continue; // Dừng gửi dữ liệu nếu record là false
-    }
+    // if (!fb.getBool("Record")) {
+    //   vTaskDelay(1000 / portTICK_PERIOD_MS); // Delay trước khi kiểm tra lại
+    //   continue; // Dừng gửi dữ liệu nếu record là false
+    // }
     unsigned long currentMillis = millis(); // Lấy thời gian hiện tại
     if (predicted_gesture != -1 && (currentMillis - lastSendTime >= sendInterval)) {
       lastSendTime = currentMillis;  // Cập nhật thời gian lần gửi gần nhất
