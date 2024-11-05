@@ -1,5 +1,5 @@
 Main functions in this module:
-1. Recognizing breathing/apnea status
+1. Recognizing breathing/apnea status based on AI model
 2. Calculating breathing rate based on fast fourier transform
 3. Recognizing user posture: sitting or lying
 4. Calculating remaining battery capacity of the device
